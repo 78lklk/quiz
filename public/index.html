@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тест: инновационная деятельность предприятий Беларуси, 2026</title>
+<style>
+:root{--bg:#f3f5f2;--surface:#fff;--ink:#1b2a26;--muted:#5d6b66;--line:#d5dcd8;--accent:#0f5c4d;--accent-ink:#fff;--sel:#e2efe9;--red:#c0201b;--redbg:#fbe4e2}
+@media (prefers-color-scheme:dark){:root{--bg:#10181a;--surface:#182224;--ink:#e6eeea;--muted:#9aaba5;--line:#2c3b3d;--accent:#56c2a6;--accent-ink:#08201a;--sel:#1b3a33;--red:#ff6b64;--redbg:#3d1d1b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 Georgia,"Times New Roman",serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:660px;margin:0 auto;padding:16px 16px 48px}
+h1{font-size:1.7rem;line-height:1.2;margin:8px 0 12px}h2{font-size:1.2rem;line-height:1.35;margin:4px 0 16px}p{margin:0 0 12px}
+.muted{color:var(--muted);font-size:.95rem}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:16px}
+button,input{font:inherit}
+input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin:6px 0 12px}
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:12px 22px;font-weight:700;cursor:pointer}
+.btn.sec{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.opt{display:block;width:100%;text-align:left;background:var(--surface);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 10px;cursor:pointer}
+.opt.sel{background:var(--sel);border-color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.err{color:var(--red);margin:0 0 12px;font-weight:700}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 8px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.tm{font:700 1.5rem/1 ui-monospace,Menlo,Consolas,monospace;padding:8px 14px;border-radius:8px;border:2px solid var(--line);background:var(--surface)}
+.tm.hot{color:var(--red);border-color:var(--red);background:var(--redbg);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.tm.hot{animation:none}}
+.row{display:flex;gap:10px;justify-content:space-between;margin-top:8px}
+.score{font-size:3rem;font-weight:700;line-height:1;margin:6px 0 10px}
+table{width:100%;border-collapse:collapse;font-size:.95rem}th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}td.n,th.n{text-align:right;white-space:nowrap}
+tr.me td{font-weight:700;background:var(--sel)}
+.wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const app=document.getElementById("app");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=ms=>{const s=Math.max(0,Math.round(ms/1000));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
+const FIO=/^[А-ЯЁа-яё]{2,}(?:-[А-ЯЁа-яё]{2,})?(?:\s+[А-ЯЁа-яё]{2,}(?:-[А-ЯЁа-яё]{2,})?){2,}$/;
+const ls={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+async function api(p,body){const r=await fetch("/api/"+p,body?{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}:{});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Нет связи с сервером");return d}
+let S=null,timer=null,cfg={limitSec:600,count:13};
+
+async function intro(msg){
+  try{cfg=await api("config")}catch(e){}
+  const done=false,saved=ls.get("quiz");
+  app.innerHTML=`<div class="card"><h1>Тест по докладу</h1>
+  <p>Организация инновационной деятельности предприятиями Республики Беларусь (данные 2026 г.).</p>
+  <p class="muted">${cfg.count} вопросов, время на тест — ${Math.round(cfg.limitSec/60)} мин. Тест можно пройти только один раз. Результат зависит от числа верных ответов, при равенстве — от затраченного времени.</p>
+  ${done?`<p><b>На этом устройстве тест уже пройден.</b></p>`:`
+  <label for="fio"><b>Фамилия, имя и отчество полностью</b></label>
+  <input id="fio" autocomplete="name" placeholder="Иванов Иван Иванович" value="${esc(saved?saved.name:"")}">
+  <p class="err" id="err">${esc(msg||"")}</p>
+  <button class="btn" id="go">Начать тест</button>`}</div>
+  <div class="card"><h2>Рейтинг</h2><div id="lb" class="muted">Загрузка…</div></div>`;
+  if(!done)document.getElementById("go").onclick=onStart;
+  showBoard(document.getElementById("lb"));
+}
+async function onStart(){
+  const name=document.getElementById("fio").value.trim().replace(/\s+/g," "),err=document.getElementById("err"),b=document.getElementById("go");
+  if(!FIO.test(name)){err.textContent="Введите полное ФИО кириллицей: фамилия, имя и отчество (три слова).";return}
+  if(!confirm("Таймер запустится сразу. Попытка только одна. Начать?"))return;
+  b.disabled=true;
+  try{
+    const saved=ls.get("quiz"),d=await api("start",{name,token:saved&&saved.name===name?saved.token:undefined});
+    const ans=saved&&saved.token===d.token?saved.answers:null;
+    begin(d,ans);
+  }catch(e){err.textContent=e.message;b.disabled=false}
+}
+function begin(d,ans){
+  S={name:d.name,token:d.token,qs:d.questions,answers:ans&&ans.length===d.questions.length?ans:d.questions.map(()=>null),i:0,end:performance.now()+d.remainingMs,sent:false};
+  ls.set("quiz",{name:S.name,token:S.token,answers:S.answers});
+  drawQuiz();clearInterval(timer);timer=setInterval(tick,250);tick();
+}
+function tick(){
+  const left=S.end-performance.now(),t=document.getElementById("tm");
+  if(left<=0){clearInterval(timer);if(t){t.textContent="00:00";t.classList.add("hot")}finish();return}
+  if(t){t.textContent=fmt(left);t.classList.toggle("hot",left<=60000)}
+}
+function drawQuiz(){
+  const q=S.qs[S.i],n=S.qs.length,last=S.i===n-1;
+  app.innerHTML=`<div class="top"><span class="muted">Вопрос ${S.i+1} из ${n}</span><span class="tm" id="tm" role="timer" aria-live="off">--:--</span></div>
+  <div class="card"><h2>${esc(q.q)}</h2>${q.o.map((t,k)=>`<button class="opt${S.answers[S.i]===k?" sel":""}" data-k="${k}">${esc(t)}</button>`).join("")}
+  <div class="row"><button class="btn sec" id="pv" ${S.i?"":"disabled"}>Назад</button>
+  <button class="btn" id="nx">${last?"Завершить тест":"Далее"}</button></div></div>
+  <p class="muted">Отвечено: ${S.answers.filter(a=>a!==null).length} из ${n}. К вопросам можно возвращаться до окончания времени.</p>`;
+  app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{S.answers[S.i]=+b.dataset.k;ls.set("quiz",{name:S.name,token:S.token,answers:S.answers});drawQuiz();tick()});
+  document.getElementById("pv").onclick=()=>{S.i--;drawQuiz();tick()};
+  document.getElementById("nx").onclick=()=>{
+    if(!last){S.i++;drawQuiz();tick();return}
+    const miss=S.answers.filter(a=>a===null).length;
+    if(confirm(miss?`Без ответа осталось вопросов: ${miss}. Завершить тест?`:"Завершить тест и отправить ответы?")){clearInterval(timer);finish()}
+  };
+  tick();
+}
+async function finish(){
+  if(S.sent)return;S.sent=true;
+  app.innerHTML=`<div class="card"><p>Отправляем ответы…</p></div>`;
+  try{
+    const r=await api("submit",{name:S.name,token:S.token,answers:S.answers});
+    ls.del("quiz");ls.set("quizDone",true);result(r);
+  }catch(e){
+    S.sent=false;
+    app.innerHTML=`<div class="card"><p class="err">${esc(e.message)}</p><button class="btn" id="rt">Отправить ещё раз</button></div>`;
+    document.getElementById("rt").onclick=finish;
+  }
+}
+function result(r){
+  app.innerHTML=`<div class="card"><p class="muted">${esc(S.name)}</p><div class="score">${r.score} из ${r.total}</div>
+  <p>Затраченное время: ${fmt(r.timeMs)}.${r.place?` Место в рейтинге: ${r.place} из ${r.of}.`:""}</p>
+  ${r.late?`<p class="err">Ответы пришли после окончания времени и не засчитаны.</p>`:""}</div>
+  <div class="card"><h2>Рейтинг</h2><div id="lb" class="muted">Загрузка…</div></div>`;
+  showBoard(document.getElementById("lb"),S.name);
+}
+async function showBoard(el,me){
+  try{
+    const d=await api("leaderboard");
+    if(!d.rows.length){el.textContent="Пока никто не завершил тест.";return}
+    el.innerHTML=`<div class="wrap"><table><thead><tr><th class="n">№</th><th>ФИО</th><th class="n">Баллы</th><th class="n">Время</th></tr></thead><tbody>${d.rows.map(r=>`<tr class="${r.name===me?"me":""}"><td class="n">${r.place}</td><td>${esc(r.name)}</td><td class="n">${r.score}/${d.total}</td><td class="n">${fmt(r.timeMs)}</td></tr>`).join("")}</tbody></table></div>`;
+  }catch(e){el.textContent="Не удалось загрузить рейтинг."}
+}
+(async()=>{
+  const saved=ls.get("quiz");
+  if(saved&&saved.name&&saved.token&&!ls.get("quizDone")){
+    try{const d=await api("start",{name:saved.name,token:saved.token});begin(d,saved.answers);return}catch(e){ls.del("quiz")}
+  }
+  intro();
+})();
+</script>
+</body>
+</html>
