@@ -77,10 +77,11 @@ async function submit(req, store) {
   return json({ score, total: QUESTIONS.length, timeMs, late, place: me ? me.place : null, of: b.rows.length });
 }
 
+const sha = (v) => createHash("sha256").update(String(v)).digest();
 const authed = (req) => {
   const k = process.env.ADMIN_KEY || "", g = req.headers.get("x-admin-key") || "";
-  if (!k || g.length !== k.length) return false;
-  return timingSafeEqual(Buffer.from(g), Buffer.from(k));
+  if (!k || !g) return false;
+  return timingSafeEqual(sha(g), sha(k));
 };
 
 async function adminList(store) {
