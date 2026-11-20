@@ -47,9 +47,9 @@ async function start(req, store) {
   if (!FIO.test(full)) return json({ error: "Введите полное ФИО кириллицей: фамилия, имя и отчество." }, 400);
   const key = keyOf(full), now = Date.now();
   const rec = { id: randomUUID(), name: full, startedAt: now, deadline: now + LIMIT, status: "started", qs: buildQs() };
-  const { modified } = await store.setJSON(key, rec, { onlyIfNew: true }); // атомарно: вторая попытка невозможна
-  if (modified) return json(pub(rec, now));
+  try { await store.setJSON(key, rec, { onlyIfNew: true }); } catch (e) { console.error("start write", e); } // атомарно: вторая попытка невозможна
   const old = await store.get(key, { type: "json" });
+  if (old && old.id === rec.id) return json(pub(rec, now)); // запись создана нами
   if (old && old.status === "started" && token && token === old.id && now < old.deadline) return json(pub(old, now)); // продолжение после обновления страницы
   return json({ error: "Для этого ФИО попытка уже использована. Тест можно пройти только один раз." }, 409);
 }
@@ -66,8 +66,12 @@ async function submit(req, store) {
   if (!late && Array.isArray(answers)) r.qs.forEach((q, n) => { if (q.o[answers[n]] === 0) score++; });
   const timeMs = Math.min(now, r.deadline) - r.startedAt;
   const fin = { ...r, status: "finished", score, timeMs, finishedAt: now, late };
-  const { modified } = await store.setJSON(key, fin, { onlyIfMatch: e.etag });
-  if (!modified) return json({ error: "Ответы уже отправлены." }, 409);
+  try { await store.setJSON(key, fin, { onlyIfMatch: e.etag }); } catch (err) { console.error("submit write", err); }
+  const chk = await store.get(key, { type: "json" });
+  if (!chk || chk.finishedAt !== now) {
+    if (chk && chk.status === "finished") return json({ error: "Ответы уже отправлены." }, 409);
+    return json({ error: "Не удалось сохранить ответы. Нажмите «Отправить ещё раз»." }, 500);
+  }
   const b = await board(store);
   const me = b.rows.find((x) => x.name === r.name);
   return json({ score, total: QUESTIONS.length, timeMs, late, place: me ? me.place : null, of: b.rows.length });
@@ -119,7 +123,7 @@ export default async (req) => {
     }
   } catch (err) {
     console.error(err);
-    return json({ error: "Ошибка сервера. Попробуйте ещё раз." }, 500);
+    return json({ error: "Ошибка сервера: " + (err && err.message ? err.message : err) }, 500);
   }
   return json({ error: "Не найдено" }, 404);
 };
